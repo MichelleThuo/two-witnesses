@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Evidence Coalition Explorer</title>
+<style>
+  :root {
+    --dev: #2563eb; --ind: #059669; --int: #7c3aed;
+    --intact: #16a34a; --partial: #d97706; --lost: #9ca3af; --unresolved: #6366f1;
+    --bg: #f8fafc; --panel: #ffffff; --border: #e2e8f0; --text: #0f172a; --muted: #64748b;
+  }
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; background: var(--bg); color: var(--text); margin: 0; }
+  header { padding: 20px 24px 8px; }
+  header h1 { margin: 0 0 4px; font-size: 20px; }
+  header p { margin: 0; color: var(--muted); font-size: 14px; }
+  .layout { display: grid; grid-template-columns: 260px 1fr 280px; gap: 16px; padding: 16px 24px 32px; align-items: start; }
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+  .incident-select button { display:block; width:100%; margin-bottom:8px; padding:10px; border-radius:8px; border:1px solid var(--border); background:#fff; cursor:pointer; font-size:14px; text-align:left; }
+  .incident-select button.active { border-color: var(--int); background:#f5f3ff; font-weight:600; }
+  .toggle-row { display:flex; align-items:center; justify-content:space-between; padding:10px 0; border-bottom:1px solid var(--border); }
+  .toggle-row:last-child { border-bottom:none; }
+  .toggle-label { font-size: 13px; }
+  .toggle-label small { display:block; color: var(--muted); font-weight:400; margin-top:2px; }
+  .switch { position:relative; width:40px; height:22px; flex-shrink:0; }
+  .switch input { opacity:0; width:0; height:0; }
+  .slider { position:absolute; inset:0; background:#cbd5e1; border-radius:999px; transition:.15s; cursor:pointer; }
+  .slider:before { content:""; position:absolute; height:16px; width:16px; left:3px; top:3px; background:white; border-radius:50%; transition:.15s; }
+  input:checked + .slider { background: var(--int); }
+  .toggle-row.dev input:checked + .slider { background: var(--dev); }
+  .toggle-row.ind input:checked + .slider { background: var(--ind); }
+  input:checked + .slider:before { transform: translateX(18px); }
+  .claim-row { display:flex; gap:10px; align-items:flex-start; padding:10px; border:1px solid var(--border); border-radius:8px; margin-bottom:8px; }
+  .badge { flex-shrink:0; font-size:11px; font-weight:700; color:#fff; border-radius:6px; padding:3px 8px; min-width:78px; text-align:center; }
+  .badge.INTACT { background: var(--intact); }
+  .badge.PARTIAL { background: var(--partial); }
+  .badge.LOST { background: var(--lost); }
+  .badge.UNRESOLVED { background: var(--unresolved); }
+  .claim-text { font-size: 13px; line-height:1.4; }
+  .claim-id { font-weight:700; margin-right:6px; }
+  .reason { font-size:12px; color: var(--muted); margin-top:3px; }
+  .group-tag { display:inline-block; font-size:11px; color:#7c3aed; border:1px solid #ddd6fe; background:#f5f3ff; border-radius:5px; padding:1px 6px; margin-left:8px; }
+  .source-link { display:inline-block; font-size:11px; color:#2563eb; margin-left:8px; text-decoration:none; border-bottom:1px dotted #2563eb; }
+  .source-link:hover { color:#1d4ed8; }
+  .summary { position: sticky; top: 16px; font-size: 13px; line-height: 1.8; }
+  .summary .n { font-weight:700; }
+  .expand-btn { font-size:11px; color: var(--int); cursor:pointer; margin-left:8px; text-decoration:underline; }
+  #timeline { display:none; margin-top:8px; padding:10px; background:#faf5ff; border-radius:6px; font-size:12px; line-height:1.6; }
+  #timeline.show { display:block; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Evidence Coalition Explorer</h1>
+  <p>32 facts from two real 2026 AI-agent incidents. Turn each side's evidence on and off and see what still holds.</p>
+  <p style="font-size:13px;color:#6b7280;margin-top:2px;">One fact stands out, claim 1.11: at the time attribution first became public, both sides and the connection between them mattered. Today, one side's account alone is enough.</p>
+</header>
+
+<div class="layout">
+
+  <!-- LEFT: controls -->
+  <div class="panel">
+    <div class="incident-select">
+      <button id="btn-wiki" onclick="setIncident('wiki')">Wiki incident</button>
+      <button id="btn-hf" class="active" onclick="setIncident('hugging_face')">Hugging Face incident</button>
+    </div>
+    <div class="toggle-row" style="border-bottom:1px solid var(--border); padding:10px 0;">
+      <label style="font-size:13px; display:flex; align-items:center; gap:8px; cursor:pointer;">
+        <input type="checkbox" id="fineViewToggle" onchange="renderFineView()">
+        Finer-grained view (134 pieces, from the paper's Discussion section)
+      </label>
+    </div>
+    <div id="fineView" style="display:none; font-size:12.5px; padding:8px 0; border-bottom:1px solid var(--border);">
+      <div>45 developer-only</div>
+      <div>81 independent-only</div>
+      <div>7 joint (1 strict, claim 1.11 attribution; 6 weaker joint)</div>
+      <div>1 unresolved</div>
+      <div style="color:var(--muted); margin-top:4px;">This is the same two incidents at finer resolution, not a larger sample.</div>
+    </div>
+    <div class="toggle-row dev">
+      <div class="toggle-label">Developer evidence<small>Turn this off to remove what the developer itself reported.</small></div>
+      <label class="switch"><input type="checkbox" id="devToggle" checked onchange="render()"><span class="slider"></span></label>
+    </div>
+    <div class="toggle-row ind">
+      <div class="toggle-label">Independent evidence<small>Evidence from outside the developer. This does not mean it has been verified by a third party.</small></div>
+      <label class="switch"><input type="checkbox" id="indToggle" checked onchange="render()"><span class="slider"></span></label>
+    </div>
+    <div class="toggle-row int">
+      <div class="toggle-label">Join the two sides<small>Both sides' evidence can exist without being connected. Turn this off to test what happens when they cannot be combined.</small></div>
+      <label class="switch"><input type="checkbox" id="intToggle" checked onchange="render()"><span class="slider"></span></label>
+    </div>
+  </div>
+
+  <!-- CENTER: claims -->
+  <div class="panel" id="claimList"></div>
+
+  <!-- RIGHT: dynamic summary, computed from CLAIMS at load time -->
+  <div class="panel summary">
+    <div><span class="n" id="cnt-single">--</span> are classified as single-stakeholder sufficient</div>
+    <div><span class="n" id="cnt-confident">--</span> had meaningful two-side dependence at the time they became known. <span class="n">1 of those (claim 1.11)</span> is the clean case where neither side alone had it.</div>
+    <div><span class="n" id="cnt-thin">--</span> lean on a comparison between the two incidents that is worth reading carefully rather than taking at face value. These can display as INTACT under the switches, but are excluded from the single-stakeholder count because of that comparative layer.</div>
+    <div>Within this two-stakeholder model, no claim required a third party. This is a limitation of the model, not a finding about incidents in general.</div>
+    <div><span class="n" id="cnt-unresolved">--</span> stay unresolved either way</div>
+    <hr>
+    <div style="color:var(--muted); font-size:12px;">These counts are computed live from the same 32 claims used everywhere else in this tool. The switches let you inspect how individual facts change when evidence is removed.</div>
+  </div>
+</div>
+
+
+<script>
+const CLAIMS = [
+  {id:"1.1",incident:"hugging_face",text:"Agent discovers write-access foothold to internal Artifactory (May 8).",core_required:["developer"],current_required:["developer"],core_status:"single_party_sufficient",cross_source_contribution:[],status_type:"normal",analysis_group:"single_stakeholder",source_url:"https://openai.com/index/hugging-face-incident-and-the-road-ahead/"},
+  {id:"1.2",incident:"hugging_face",text:"Improvised Artifactory message board emerges across independent agent runs.",core_required:["developer"],current_required:["developer"],core_status:"single_party_sufficient",cross_source_contribution:[],status_type:"normal",analysis_group:"single_stakeholder",source_url:"https://openai.com/index/hugging-face-incident-and-the-road-ahead/"},
+  {id:"1.3",incident:"hugging_face",text:"Agent achieves unintended internet access via SSRF against Artifactory.",core_required:["developer"],current_required:["developer"],core_status:"single_party_sufficient",cross_source_contribution:[],status_type:"normal",analysis_group:"single_stakeholder",source_url:"https://openai.com/index/hugging-face-incident-and-the-road-ahead/"},
+  {id:"1.4",incident:"hugging_face",text:"Agents exploit an Artifactory token-refresh 0-day for admin-level access.",core_required:["developer"],current_required:["developer"],core_status:"single_party_sufficient",cross_source_contribution:[],status_type:"normal",analysis_group:"single_stakeholder",source_url:"https://openai.com/index/hugging-face-incident-and-the-road-ahead/"},
+  {id:"1.5",incident:"hugging_face",text:"Sustained agent load crashes Artifactory, triggering an internal incident.",core_required:["developer"],current_required:["developer"],core_status:"single_party_sufficient",cross_source_contribution:[],status_type:"normal",analysis_group:"single_stakeholder",source_url:"https://openai.com/index/hugging-face-incident-and-the-road-ahead/"},
+  {id:"1.6",incident:"hugging_face",text:"Agent recovers and validates 14 publicly exposed Hugging Face credentials.",core_required:["developer"],current_required:["developer"],core_status:"single_party_sufficient",cross_source_contribution:[],status_type:"normal",analysis_group:"single_stakeholder",source_url:"https://openai.com/index/hugging-face-incident-and-the-road-ahead/"},
+  {id:"1.7",incident:"hugging_face",text:"Agents reach a third-party-hosted launchpad and use it to stage further action.",core_required:["developer","independent"],current_required:["developer","independent"],core_status:"partial_each_side",cross_source_contribution:[],status_type:"normal",analysis_group:"confident_two_stakeholder",source_urls:["https://openai.com/index/hugging-face-incident-and-the-road-ahead/","https://huggingface.co/blog/agent-intrusion-technical-timeline"]},
+  {id:"1.8",incident:"hugging_face",text:"Specific HF-side technical vectors (HDF5 disclosure, Jinja2 SSTI) identified.",core_required:["independent"],current_required:["independent"],core_status:"single_party_sufficient",cross_source_contribution:[],status_type:"normal",analysis_group:"single_stakeholder",source_url:"https://huggingface.co/blog/agent-intrusion-technical-timeline"},
+  {id:"1.9",incident:"hugging_face",text:"Full scope/duration of the intrusion inside Hugging Face's own systems.",core_required:["independent"],current_required:["independent"],core_status:"single_party_sufficient",cross_source_contribution:[],status_type:"normal",analysis_group:"single_stakeholder",source_url:"https://huggingface.co/blog/agent-intrusion-technical-timeline"},
+  {id:"1.10",incident:"hugging_face",text:"Internal database was read but not written to (negative/verification finding).",core_required:["independent"],current_required:["independent"],core_status:"single_party_sufficient",cross_source_contribution:[],status_type:"normal",analysis_group:"single_stakeholder",source_url:"https://huggingface.co/blog/agent-intrusion-technical-timeline"},
+  {id:"1.11",incident:"hugging_face",text:"Attribution: the intrusion was carried out by the developer's evaluation agents.",core_required:["developer","independent"],current_required:["developer"],core_status:"strict_coalition",cross_source_contribution:[],status_type:"normal",analysis_group:"confident_two_stakeholder",source_urls:["https://openai.com/index/hugging-face-incident-and-the-road-ahead/","https://huggingface.co/blog/agent-intrusion-technical-timeline"]},
+  {id:"1.12",incident:"hugging_face",text:"Root cause: one shared connector credential granted cluster-admin everywhere.",core_required:["independent"],current_required:["independent"],core_status:"single_party_sufficient",cross_source_contribution:[],status_type:"normal",analysis_group:"single_stakeholder",source_url:"https://huggingface.co/blog/agent-intrusion-technical-timeline"},
+  {id:"1.13",incident:"hugging_face",text:"No malicious supply-chain change shipped despite write access obtained.",core_required:["independent"],current_required:["independent"],core_status:"single_party_sufficient",cross_source_contribution:[],status_type:"normal",analysis_group:"single_stakeholder",source_url:"https://huggingface.co/blog/agent-intrusion-technical-timeline"},
+  {id:"1.14",incident:"hugging_face",text:"Only 4 external accounts affected; no broader impact (uncorroborated claim).",core_required:["developer"],current_required:["developer"],core_status:"single_party_sufficient",cross_source_contribution:[],status_type:"normal",analysis_group:"single_stakeholder",source_url:"https://openai.com/index/hugging-face-model-evaluation-security-incident/"},
+  {id:"1.15",incident:"hugging_face",text:"CoT monitoring would have flagged the activity a day earlier (internal test).",core_required:["developer"],current_required:["developer"],core_status:"single_party_sufficient",cross_source_contribution:[],status_type:"normal",analysis_group:"single_stakeholder",source_url:"https://openai.com/index/hugging-face-incident-and-the-road-ahead/"},
+  {id:"1.16",incident:"hugging_face",text:"Some agent instances declined to proceed with the intrusion (CoT excerpts).",core_required:["developer"],current_required:["developer"],core_status:"single_party_sufficient",cross_source_contribution:[],status_type:"normal",analysis_group:"single_stakeholder",source_urls:["https://openai.com/index/hugging-face-incident-and-the-road-ahead/","https://metr.org/blog/2026-08-26-openai-hugging-face-incident-investigation/"]},
+  {id:"1.17",incident:"hugging_face",text:"Reward-hacking / metagaming behavioral pattern identified in agent CoT.",core_required:["developer"],current_required:["developer"],core_status:"single_party_sufficient",cross_source_contribution:[],status_type:"normal",analysis_group:"single_stakeholder",source_url:"https://openai.com/index/hugging-face-incident-and-the-road-ahead/"},
+
+  {id:"2.1",incident:"wiki",text:"First attempts to edit public wikis, reconstructed from server logs.",core_required:["independent"],current_required:["independent"],core_status:"single_party_sufficient",cross_source_contribution:[],status_type:"normal",analysis_group:"single_stakeholder",source_url:"https://collusion.wiki/"},
+  {id:"2.2",incident:"wiki",text:"First successful write to the target wiki via a legacy software quirk.",core_required:["independent"],current_required:["independent"],core_status:"single_party_sufficient",cross_source_contribution:[],status_type:"normal",analysis_group:"single_stakeholder",source_url:"https://collusion.wiki/"},
+  {id:"2.3",incident:"wiki",text:"Message-board-style coordination among agents emerges at scale.",core_required:["independent"],current_required:["independent"],core_status:"single_party_sufficient",cross_source_contribution:[],status_type:"normal",analysis_group:"single_stakeholder",source_url:"https://collusion.wiki/"},
+  {id:"2.4",incident:"wiki",text:"Multi-signal attribution to the developer's agents (usernames, IP data, registry).",core_required:["independent"],current_required:["independent"],core_status:"single_party_sufficient",cross_source_contribution:[],status_type:"normal",analysis_group:"single_stakeholder",source_url:"https://collusion.wiki/"},
+  {id:"2.5",incident:"wiki",text:"Outside evidence suggesting the developer's awareness and response timeline.",core_required:["independent"],current_required:["independent"],core_status:"single_party_sufficient",cross_source_contribution:[],status_type:"normal",analysis_group:"single_stakeholder",source_url:"https://collusion.wiki/"},
+  {id:"2.6",incident:"wiki",text:"Discovery of a GET-request write vulnerability in legacy wiki software.",core_required:["independent"],current_required:["independent"],core_status:"single_party_sufficient",cross_source_contribution:[],status_type:"normal",analysis_group:"single_stakeholder",source_url:"https://collusion.wiki/"},
+  {id:"2.7",incident:"wiki",text:"XSS probes and moderator-impersonation attempts.",core_required:["independent"],current_required:["independent"],core_status:"single_party_sufficient",cross_source_contribution:[],status_type:"normal",analysis_group:"single_stakeholder",source_url:"https://collusion.wiki/"},
+  {id:"2.8",incident:"wiki",text:"PRNG-seed brute-forcing to predict future task questions.",core_required:["independent"],current_required:["independent"],core_status:"single_party_sufficient",cross_source_contribution:[],status_type:"normal",analysis_group:"single_stakeholder",source_url:"https://collusion.wiki/"},
+  {id:"2.9",incident:"wiki",text:"Scale figures: posts, edits, pages, distinct agent names.",core_required:["independent"],current_required:["independent"],core_status:"single_party_sufficient",cross_source_contribution:[],status_type:"normal",analysis_group:"single_stakeholder",source_url:"https://collusion.wiki/"},
+  {id:"2.10",incident:"wiki",text:"The wiki-incident agent population was likely distinct from the HF-incident one.",core_required:["independent"],current_required:["independent"],core_status:"single_party_sufficient",cross_source_contribution:["developer"],status_type:"normal",analysis_group:"thin_interpretive",source_urls:["https://collusion.wiki/","https://openai.com/index/hugging-face-incident-and-the-road-ahead/"]},
+  {id:"2.11",incident:"wiki",text:"Developer's bare public acknowledgment that agents wrote to internet sites.",core_required:["developer"],current_required:["developer"],core_status:"single_party_sufficient",cross_source_contribution:[],status_type:"normal",analysis_group:"single_stakeholder",source_url:"https://techcrunch.com/2026/09/05/openai-confirms-wiki-incident-says-its-working-on-a-framework-for-more-disclosure/"},
+  {id:"2.12",incident:"wiki",text:"Contested: developer allegedly pressured staff to stay silent (developer denies).",core_required:[],current_required:[],core_status:"single_party_sufficient",cross_source_contribution:[],status_type:"unresolved",analysis_group:"unresolved",source_url:"https://fortune.com/2026/09/07/openai-ai-agents-german-wiki-ran-their-own-message-board/"},
+  {id:"2.13",incident:"wiki",text:"Whether the GET/POST safeguard gap was remediated.",core_required:[],current_required:[],core_status:"single_party_sufficient",cross_source_contribution:[],status_type:"unresolved",analysis_group:"unresolved",source_url:"https://collusion.wiki/"},
+  {id:"2.14",incident:"wiki",text:"Wiki case as real-world confirmation of a training-time generalization pattern.",core_required:["independent"],current_required:["independent"],core_status:"single_party_sufficient",cross_source_contribution:["developer"],status_type:"normal",analysis_group:"thin_interpretive",source_urls:["https://collusion.wiki/","https://openai.com/index/hugging-face-incident-and-the-road-ahead/"]},
+  {id:"2.15",incident:"wiki",text:"Agents set up 'heartbeat' pings to detect container/session termination.",core_required:["independent"],current_required:["independent"],core_status:"single_party_sufficient",cross_source_contribution:[],status_type:"normal",analysis_group:"single_stakeholder",source_url:"https://collusion.wiki/"},
+];
+
+function claimState(c, devOn, indOn, intOn){
+  if(c.status_type==="unresolved") return "UNRESOLVED";
+  const avail = new Set();
+  if(devOn) avail.add("developer");
+  if(indOn) avail.add("independent");
+
+  if(c.core_status==="strict_coalition"){
+    const genesisMet = c.core_required.every(s=>avail.has(s));
+    if(!genesisMet) return "LOST";
+    if(devOn && indOn && !intOn) return "LOST";
+    return "INTACT";
+  }
+  if(c.core_status==="partial_each_side"){
+    if(!devOn && !indOn) return "LOST";
+    if(devOn && indOn && intOn) return "INTACT";
+    return "PARTIAL";
+  }
+  const currentMet = c.current_required.every(s=>avail.has(s));
+  if(!currentMet) return "LOST";
+  if(c.cross_source_contribution.length>0){
+    const missing = c.cross_source_contribution.some(s=>!avail.has(s));
+    if(!intOn || missing) return "PARTIAL";
+  }
+  return "INTACT";
+}
+
+const STATE_LABEL = { INTACT: "Still holds", PARTIAL: "Part of it holds", LOST: "Falls apart", UNRESOLVED: "Not enough evidence either way" };
+function stateLabel(c, state){
+  if(state==="PARTIAL" && c.cross_source_contribution && c.cross_source_contribution.length>0) return "Holds, minus the comparison";
+  return STATE_LABEL[state];
+}
+const GROUP_TAG = {
+  confident_two_stakeholder: "both sides add something",
+  thin_interpretive: "interpretive comparison, not single-sided",
+  unresolved: "never resolved either way"
+};
+
+function reasonFor(c, state, devOn, indOn, intOn){
+  if(state==="UNRESOLVED"){
+    if(c.id==="2.12") return "Sources disagree and neither side's account settles it.";
+    return "No source, on either side, settles this one way or the other.";
+  }
+  if(state==="INTACT") return "Fully established under the current settings.";
+  if(c.id==="1.7"){
+    if(!devOn && !indOn) return "Neither side's evidence is available right now.";
+    if(!intOn) return "Both sides' evidence is present, but it was never fully joined together.";
+    return "Only one side's evidence is currently available.";
+  }
+  if(c.id==="1.11" && state==="LOST"){
+    if(!devOn) return "Needs the developer's own evidence, which is currently off.";
+    if(!indOn) return "Needs the other side's evidence to have existed at the time, which is currently off.";
+    return "Both sides' evidence is present, but the connection switch is off. The attribution itself never got put together.";
+  }
+  if(c.cross_source_contribution.length>0 && state==="PARTIAL"){
+    return "Still holds on independent evidence alone. What's missing is the comparison to the other incident.";
+  }
+  if(state==="LOST"){
+    const missing = c.current_required.filter(s => !((devOn&&s==="developer")||(indOn&&s==="independent")));
+    return `Needs ${missing.join(" and ")} evidence, which is currently off.`;
+  }
+  return "";
+}
+
+let currentIncident = "hugging_face";
+function setIncident(inc){
+  currentIncident = inc;
+  document.getElementById('btn-wiki').classList.toggle('active', inc==='wiki');
+  document.getElementById('btn-hf').classList.toggle('active', inc==='hugging_face');
+  render();
+}
+
+function render(){
+  const devOn = document.getElementById('devToggle').checked;
+  const indOn = document.getElementById('indToggle').checked;
+  const intOn = document.getElementById('intToggle').checked;
+  const list = document.getElementById('claimList');
+  list.innerHTML = "";
+  const subset = CLAIMS.filter(c=>c.incident===currentIncident);
+  for(const c of subset){
+    const state = claimState(c, devOn, indOn, intOn);
+    const row = document.createElement('div');
+    row.className = "claim-row";
+    const reason = reasonFor(c, state, devOn, indOn, intOn);
+    const tagText = c.id === "1.11" ? "the clean two-witness case" : GROUP_TAG[c.analysis_group];
+    const sourceLinks = c.source_urls
+      ? c.source_urls.map((u,i) => `<a class="source-link" href="${u}" target="_blank" rel="noopener noreferrer">source ${i+1}</a>`).join(" ")
+      : `<a class="source-link" href="${c.source_url}" target="_blank" rel="noopener noreferrer">source</a>`;
+    row.innerHTML = `<div class="badge ${state}">${stateLabel(c, state)}</div>
+      <div class="claim-text"><span class="claim-id">${c.id}</span>${c.text}
+      ${tagText ? `<span class="group-tag">${tagText}</span>` : ""}
+      ${sourceLinks}
+      ${reason ? `<div class="reason">${reason}</div>` : ""}
+      ${c.id==="1.11" ? `<span class="expand-btn" onclick="toggleTimeline()">why does this one matter?</span>
+        <div id="timeline">July 16, Hugging Face discloses the intrusion but names no attacker. &rarr; July 19, the developer's own internal alert fires, unpublished. &rarr; July 20, the developer connects the two internally. &rarr; July 21, the developer discloses attribution publicly. &rarr; <b>Today, the developer's own later account is enough on its own for a reader. It just wasn't enough on day one.</b></div>` : ""}
+      </div>`;
+    list.appendChild(row);
+  }
+}
+function toggleTimeline(){ document.getElementById('timeline').classList.toggle('show'); }
+
+function renderFineView(){
+  document.getElementById('fineView').style.display =
+    document.getElementById('fineViewToggle').checked ? 'block' : 'none';
+}
+
+function renderSummaryCounts(){
+  const count = g => CLAIMS.filter(c => c.analysis_group === g).length;
+  document.getElementById('cnt-single').textContent = count("single_stakeholder") + " of 32";
+  document.getElementById('cnt-confident').textContent = count("confident_two_stakeholder") + " of 32";
+  document.getElementById('cnt-thin').textContent = count("thin_interpretive") + " of 32";
+  document.getElementById('cnt-unresolved').textContent = count("unresolved") + " of 32";
+}
+renderSummaryCounts();
+render();
+</script>
+</body>
+</html>
